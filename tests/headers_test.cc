@@ -542,7 +542,15 @@ TEST(headers_test, date_test_ostream)
     Pistache::Http::Header::Date d4;
     d4.parse("Fri, 25 Jan 2019 21:04:45.000000000 UTC");
     d4.write(os);
-    ASSERT_EQ("Fri, 25 Jan 2019 21:04:45.000000000 UTC", os.str());
+    const char* cstr_to_compare = "Fri, 25 Jan 2019 21:04:45."
+#if defined __clang__ && !defined __linux__
+                                  "000000"
+#else
+                                  "000000000"
+#endif
+                                  " UTC";
+
+    ASSERT_EQ(cstr_to_compare, os.str());
 }
 
 TEST(headers_test, host)
@@ -727,6 +735,23 @@ TEST(headers_test, access_control_allow_methods_test)
 
     ASSERT_EQ(allowMethods.val(), "GET, POST, DELETE");
     ASSERT_STREQ(os.str().c_str(), "GET, POST, DELETE");
+}
+
+TEST(headers_test, last_modified_test)
+{
+    const std::string ref = "Sun, 06 Nov 1994 08:49:37 GMT";
+    using namespace std::chrono;
+    Pistache::Http::FullDate::time_point expected_time_point = date::sys_days(date::year { 1994 } / 11 / 6) + hours(8) + minutes(49) + seconds(37);
+    Pistache::Http::FullDate fd(expected_time_point);
+    Pistache::Http::Header::LastModified l0(fd);
+    std::ostringstream oss;
+    l0.write(oss);
+    ASSERT_EQ(ref, oss.str());
+    Pistache::Http::Header::LastModified l1;
+    l1.parse(ref);
+    oss.str("");
+    l1.write(oss);
+    ASSERT_EQ(ref, oss.str());
 }
 
 TEST(headers_test, location_test)
