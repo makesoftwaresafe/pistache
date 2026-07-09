@@ -140,6 +140,18 @@ jobs:
           # build/tests/run_http_server_test
         fi
 
+    - name: Check Crash Logs
+      if: always()
+      run: |
+        echo "Checking for crash logs..."
+        CRASH_DIR="$HOME/Library/Logs/DiagnosticReports"
+        if [ -d "$CRASH_DIR" ] && [ "$(ls -A $CRASH_DIR)" ]; then
+        echo "=== CRASH LOG FOUND ==="
+        cat $CRASH_DIR/*.ips | head -n 500 # Should include the stack trace
+        else
+        echo "No crash logs found."
+        fi
+
     - name: Coverage
       if: ${{ !contains(matrix.os, 'macos') }}  # Remove this if to do coverage test
       run: |
