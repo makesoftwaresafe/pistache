@@ -430,7 +430,9 @@ public:
     std::unique_ptr<Pistache::Tcp::Listener>
     prepare_listener(const Pistache::Tcp::Options options)
     {
-        PS_TIMEDBG_START;
+#ifndef __APPLE__
+        PS_TIMEDBG_START; // See try_to_leak_socket for why not in macOS
+#endif
 
         const Pistache::Address address(Pistache::Ipv4::any(),
                                         Pistache::Port(port));
@@ -457,7 +459,27 @@ public:
         pid_t fork_res = fork();
         if (is_child_process(fork_res))
         {
+#ifndef __APPLE__
+            // For macOS, calling fork without an immediate exec is dangerous -
+            // you cannot call certain system library calls (including os_log,
+            // the macOS logging call) safely immediately after a
+            // fork. Otherwise you will get a SEGV occasionally in the
+            // _os_log_preferences_refresh function of libsystem_trace.dylib
+            // called by os_log.
+            //
+            // More specifically, in macOS, fork() only duplicates the calling
+            // thread. If any other thread in the parent process held an
+            // internal system lock (like the logging subsystem configuration
+            // lock used in _os_log_preferences_refresh) at the fork, that lock
+            // remains permanently unlockable in the child process.
+            //
+            // Note - this doesn't seem to apply on BSD. ALthough fork()
+            // operates similarly on BSD to macOS, BSD logging just uses syslog
+            // which (unlike os_log in macOS) is async-signal-safe. There could
+            // still be an issue on BSD if we relied on one our our own locks
+            // after a fork, but calling syslog shouldn't be an issue.
             PS_TIMEDBG_START;
+#endif
 
             auto server = prepare_listener(options);
             server->bind();
